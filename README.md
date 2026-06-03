@@ -1,388 +1,255 @@
-<p align="center"><img src="https://github.com/user-attachments/assets/896f9239-134a-4428-9bb5-50ea59cdb5c3" alt="lumen" /></p>
+# diff-log
 
-# lumen
+Terminal PR review for GitHub. Run `diff-log` inside a repo, pick an open PR, review the diff, add comments, and submit the review without leaving your terminal.
 
-A fast terminal diff viewer and code review TUI, written in Rust.
+`diff-log` is built from the existing Lumen diff viewer, but the product path is focused: open PRs first, clean review workflow, no browser tab juggling.
 
-[![Crates.io Total Downloads](https://img.shields.io/crates/d/lumen?label=downloads%20%40crates.io)](https://crates.io/crates/lumen)
-[![GitHub Releases](https://img.shields.io/github/downloads/jnsahaj/lumen/total?label=dowloads%20%40releases)](https://github.com/jnsahaj/lumen/releases)
-![GitHub License](https://img.shields.io/github/license/jnsahaj/lumen)
-![Crates.io Size](https://img.shields.io/crates/size/lumen)
+## What You Get
 
-Review `git diff`, commits, branches, or GitHub PRs side-by-side without leaving your terminal. Ships as a single static Rust binary and stays snappy on multi-thousand-line diffs.
+- Open-PR picker by default: `diff-log`
+- Side-by-side terminal diff viewer
+- Inline review annotations for selections, hunks, or whole files
+- Submit annotations as GitHub PR review comments
+- GitHub viewed-file sync with `space`
+- Fast file tree, search, syntax highlighting, and stacked-diff support
+- No hosted service and no separate API key; GitHub access is handled by `gh`
 
-- Side-by-side diff viewer with tree-sitter syntax highlighting
-- Review GitHub Pull Requests with `lumen diff --pr 123`
-- Annotate selections, hunks, or whole files
-- Watch mode and stacked-commit review
-- Optional AI commit messages and change explanations (10+ providers)
-- Works with Git and Jujutsu (jj)
+## Fresh Mac Setup
 
-[![Demo](https://github.com/user-attachments/assets/dc425871-3826-4368-88d8-931b9403f0ec)](https://github.com/user-attachments/assets/70d07324-8394-423c-bbc3-9460ed84877b)
+These steps are for a brand-new machine.
 
-## Special Thanks
-<div align="center">
-  <a href="https://coderabbit.link/lumen-oss">
-    <img width="2152" height="313" alt="image" src="https://github.com/user-attachments/assets/a2039a9d-5c9c-4a8e-a063-753c319f2e20" />
-  </a>
-</div>
+### 1. Install Homebrew
 
-## Table of Contents
-- [Getting Started](#getting-started-)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-- [Usage](#usage-)
-  - [Visual Diff Viewer](#visual-diff-viewer)
-- [AI Features](#ai-features-)
-  - [Configuration](#configuration)
-  - [Generate Commit Messages](#generate-commit-messages)
-  - [Generate Git Commands](#generate-git-commands)
-  - [Explain Changes](#explain-changes)
-  - [Tips & Tricks](#tips--tricks)
-  - [AI Providers](#ai-providers)
-- [Coding Agent Integrations](#coding-agent-integrations-)
-- [Advanced Configuration](#advanced-configuration-)
-  - [Configuration File](#configuration-file)
-  - [Configuration Precedence](#configuration-precedence)
-
-## Getting Started 🔅
-
-### Prerequisites
-Before you begin, ensure you have:
-1. `git` installed on your system
-2. [fzf](https://github.com/junegunn/fzf) (optional) - Required for `lumen explain --list` command
-3. [mdcat](https://github.com/swsnr/mdcat) (optional) - Required for pretty output formatting
-
-### Installation
-
-#### Using Homebrew (MacOS and Linux)
-```bash
-brew install jnsahaj/lumen/lumen
-```
-
-#### Using Cargo
-> [!IMPORTANT]
-> `cargo` is a package manager for `rust`,
-> and is installed automatically when you install `rust`.
-> See [installation guide](https://doc.rust-lang.org/cargo/getting-started/installation.html)
-```bash
-cargo install lumen
-```
-
-## Usage 🔅
-
-### Visual Diff Viewer
-
-Launch an interactive side-by-side diff viewer in your terminal:
-<img width="3456" height="2122" alt="image" src="https://github.com/user-attachments/assets/757e1187-1615-4e90-bee2-5a1f59ec0960" />
+If `brew --version` already works, skip this step.
 
 ```bash
-# View uncommitted changes
-lumen diff
-
-# View changes for a specific commit
-lumen diff HEAD~1
-
-# View changes between branches
-lumen diff main..feature/A
-
-# View changes in a GitHub Pull Request
-lumen diff --pr 123 # (--pr is optional)
-lumen diff https://github.com/owner/repo/pull/123
-
-# Filter to specific files
-lumen diff --file src/main.rs --file src/lib.rs
-
-# Watch mode - auto-refresh on file changes
-lumen diff --watch
-
-# Stacked mode - review commits one by one
-lumen diff main..feature --stacked
-
-# Jump to a specific file on open
-lumen diff --focus src/main.rs
-
-# Soft-wrap long lines (also settable in lumen.config.json)
-lumen diff --wrap
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-#### Stacked Diff Mode
-
-Review a range of commits one at a time with `--stacked`:
+After Homebrew finishes, make sure your shell can find it:
 
 ```bash
-lumen diff main..feature --stacked
-lumen diff HEAD~5..HEAD --stacked
+if [ -x /opt/homebrew/bin/brew ]; then eval "$(/opt/homebrew/bin/brew shellenv)"; fi
+if [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
 ```
 
-This displays each commit individually, letting you navigate through them:
-- `ctrl+h` / `ctrl+l`: Previous / next commit
-- Click the `‹` / `›` arrows in the header
-
-The header shows the current commit position, SHA, and message. Viewed files are tracked per commit, so your progress is preserved when navigating.
-
-When viewing a PR, you can mark files as viewed (syncs with GitHub) using the `space` keybinding.
-
-#### Theme Configuration
-
-Customize the diff viewer colors with preset themes:
+### 2. Install diff-log
 
 ```bash
-# Using CLI flag
-lumen diff --theme dracula
-
-# Using environment variable
-LUMEN_THEME=catppuccin-mocha lumen diff
-
-# Or set permanently in config file (~/.config/lumen/lumen.config.json)
-{
-  "theme": "dracula"
-}
+brew install jnsahaj/diff-log/diff-log
 ```
 
-**Available themes:**
-| Theme | Value |
-|-------|-------|
-| Default (auto-detect) | `dark`, `light` |
-| Catppuccin | `catppuccin-mocha`, `catppuccin-latte` |
-| Dracula | `dracula` |
-| Nord | `nord` |
-| One Dark | `one-dark` |
-| Gruvbox | `gruvbox-dark`, `gruvbox-light` |
-| Solarized | `solarized-dark`, `solarized-light` |
+This Homebrew formula installs the runtime dependencies too:
 
-Priority: CLI flag > config file > `LUMEN_THEME` env var > OS auto-detect.
+- `git`
+- `gh` GitHub CLI
+- `diff-log`
+- `difflog` alias, if you prefer no hyphen
 
-#### Selection & Annotations
+### 3. Log In To GitHub
 
-**Selection**: Click-drag in the content area for character-level selection, or on line numbers for line-level selection. Selected text can be copied or annotated.
-
-**Annotations**: Add review comments at three levels of granularity:
-- **Selection** — select lines with mouse, press `i` to annotate the selected range
-- **Hunk** — focus a hunk with `{`/`}`, press `i` to annotate the hunk
-- **File** — press `i` with no selection or hunk focus to annotate the whole file
-
-Annotated lines display a `▍` gutter indicator. Use `I` to view, edit, delete, copy, or export all annotations.
-
-#### Keybindings
-
-- `j/k` or arrow keys: Navigate
-- `{/}`: Jump between hunks
-- `w`: Toggle watch mode
-- `tab`: Toggle sidebar
-- `space`: Mark file as viewed
-- `e`: Open file in editor
-- `y`: Copy selection (or filename)
-- `i`: Annotate selection / hunk / file
-- `I`: View all annotations
-- `ctrl+h/l`: Previous/next commit (stacked mode)
-- `?`: Show all keybindings
-
-## AI Features 🔅
-
-Lumen also bundles optional AI helpers for commit messages, explanations, and natural-language git commands. These require configuring an AI provider — the diff viewer above does not.
-
-### Configuration
-
-Run `lumen configure` for interactive setup (provider, API key, model). Settings are saved to `~/.config/lumen/lumen.config.json`.
-
-### Generate Commit Messages
-
-Create meaningful commit messages for your staged changes:
+`diff-log` uses GitHub CLI authentication. Homebrew can install `gh`, but you still need to authorize GitHub once.
 
 ```bash
-# Basic usage - generates a commit message based on staged changes
-lumen draft
-# Output: "feat(button.tsx): Update button color to blue"
-
-# Add context for more meaningful messages
-lumen draft --context "match brand guidelines"
-# Output: "feat(button.tsx): Update button color to align with brand identity guidelines"
 ```
 
-### Generate Git Commands
+If the browser does not open automatically, GitHub CLI will print a one-time code. Open this URL and paste the code:
 
-Ask Lumen to generate Git commands based on a natural language query:
+https://github.com/login/device
+
+For private repos or org repos with SSO, you may also need to authorize GitHub CLI for the org:
 
 ```bash
-lumen operate "squash the last 3 commits into 1 with the message 'squashed commit'"
-# Output: git reset --soft HEAD~3 && git commit -m "squashed commit" [y/N]
 ```
 
-The command will display an explanation of what the generated command does, show any warnings for potentially dangerous operations, and prompt for confirmation before execution.
-
-### Explain Changes
-
-Understand what changed and why:
+Then verify:
 
 ```bash
-# Working directory or staged changes
-lumen explain
-lumen explain --staged
-
-# Specific commits or ranges
-lumen explain HEAD
-lumen explain HEAD~3..HEAD
-lumen explain main..feature/A
-
-# Ask specific questions
-lumen explain --query "What's the performance impact of these changes?"
-
-# Interactive commit selection (requires: fzf)
-lumen explain --list
+diff-log --version
 ```
 
-### Tips & Tricks
+## Start Reviewing
+
+From inside a GitHub repo:
 
 ```bash
-# Copy commit message to clipboard (macOS / Linux)
-lumen draft | pbcopy
-lumen draft | xclip -selection c
-
-# Directly commit using the generated message
-lumen draft | git commit -F -
+cd path/to/repo
+diff-log
 ```
 
-[lazygit](https://github.com/jesseduffield/lazygit) integration is available — see the [user config docs](https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md) for binding `lumen draft` to a custom command.
+That opens a picker with all open PRs for the repo. Select one and press `Enter`.
 
-### AI Providers
-
-Configure your preferred AI provider:
+If you do not have the repo cloned yet:
 
 ```bash
-# Using CLI arguments
-lumen -p openai -k "your-api-key" -m "gpt-5-mini" draft
-
-# Using environment variables
-export LUMEN_AI_PROVIDER="openai"
-export LUMEN_API_KEY="your-api-key"
-export LUMEN_AI_MODEL="gpt-5-mini"
+cd REPO
+diff-log
 ```
 
-#### Supported Providers
+If your `origin` remote is not a GitHub URL, pass the repo explicitly:
 
-| Provider | API Key Required | Models |
-|----------|-----------------|---------|
-| [OpenAI](https://platform.openai.com/docs/models) `openai` (Default) | Yes | `gpt-5.2`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4.1`, `gpt-4.1-mini`, `o4-mini` (default: `gpt-5-mini`) |
-| [Claude](https://www.anthropic.com/pricing) `claude` | Yes | `claude-sonnet-4-5-20250930`, `claude-opus-4-5-20251115`, `claude-haiku-4-5-20251015` (default: `claude-sonnet-4-5-20250930`) |
-| [Gemini](https://ai.google.dev/) `gemini` | Yes (free tier) | `gemini-3-pro`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` (default: `gemini-2.5-flash`) |
-| [Groq](https://console.groq.com/docs/models) `groq` | Yes (free) | `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `meta-llama/llama-4-maverick-17b-128e-instruct`, `openai/gpt-oss-120b` (default: `llama-3.3-70b-versatile`) |
-| [DeepSeek](https://www.deepseek.com/) `deepseek` | Yes | `deepseek-chat` (V3.2), `deepseek-reasoner` (default: `deepseek-chat`) |
-| [xAI](https://x.ai/) `xai` | Yes | `grok-4`, `grok-4-mini`, `grok-4-mini-fast` (default: `grok-4-mini-fast`) |
-| [OpenCode Zen](https://opencode.ai/docs/zen) `opencode-zen` | Yes | [see list](https://opencode.ai/docs/zen#models) (default: `claude-sonnet-4-5`) |
-| [Ollama](https://github.com/ollama/ollama) `ollama` | No (local) | [see list](https://ollama.com/library) (default: `llama3.2`) |
-| [OpenRouter](https://openrouter.ai/) `openrouter` | Yes | [see list](https://openrouter.ai/models) (default: `anthropic/claude-sonnet-4.5`) |
-| [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) `vercel` | Yes | [see list](https://vercel.com/docs/ai-gateway/supported-models) (default: `anthropic/claude-sonnet-4.5`) |
-
-## Coding Agent Integrations 🔅
-
-Use lumen as the review surface for your coding agent. When the agent finishes a turn, shell-escape to lumen, annotate the diff inline, and press `s` to send your annotations back as the agent's next prompt.
-
-```
-agent finishes turn → !lumen diff → annotate → press `s`
-→ stdout returns to the agent → agent fixes your notes
-```
-
-The mechanics are just stdin/stdout — no plugins, no extensions:
-
-- `s` in the diff TUI opens a confirmation modal. On `Enter`, lumen exits and writes the formatted annotations to stdout (the same text `y` copies to your clipboard).
-- The TUI auto-routes to `/dev/tty` when stdout is captured, so the agent receives clean text — no escape codes.
-
-Works with anything that has a shell-escape:
-
-| Agent | How to trigger |
-|-------|----------------|
-| Claude Code | `!lumen diff` |
-| Codex | `!lumen diff` |
-| Any agent with shell access | `lumen diff` from a tool/bash call |
-
-Annotate with `i` (selection / hunk / file), press `s` → `Enter` to send. Press `q` to dismiss without sending.
-
-## Advanced Configuration 🔅
-
-### Configuration File
-Lumen supports configuration through a JSON file. You can place the configuration file in one of the following locations:
-
-1. Project Root: Create a lumen.config.json file in your project's root directory.
-2. Custom Path: Specify a custom path using the --config CLI option.
-3. Global Configuration (Optional): Place a lumen.config.json file in your system's default configuration directory:
-    - Linux/macOS: `~/.config/lumen/lumen.config.json`
-    - Windows: `%USERPROFILE%\.config\lumen\lumen.config.json`
-
-Lumen will load configurations in the following order of priority:
-
-1. CLI arguments (highest priority)
-2. Configuration file specified by --config
-3. Project root lumen.config.json
-4. Global configuration file (lowest priority)
-
-```json
-{
-  "provider": "openai",
-  "model": "gpt-5-mini",
-  "api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "theme": "catppuccin-mocha",
-  "wrap": true,
-  "draft": {
-    "commit_types": {
-      "docs": "Documentation only changes",
-      "style": "Changes that do not affect the meaning of the code",
-      "refactor": "A code change that neither fixes a bug nor adds a feature",
-      "perf": "A code change that improves performance",
-      "test": "Adding missing tests or correcting existing tests",
-      "build": "Changes that affect the build system or external dependencies",
-      "ci": "Changes to our CI configuration files and scripts",
-      "chore": "Other changes that don't modify src or test files",
-      "revert": "Reverts a previous commit",
-      "feat": "A new feature",
-      "fix": "A bug fix"
-    }
-  }
-}
-```
-
-### Configuration Precedence
-Options are applied in the following order (highest to lowest priority):
-1. CLI Flags
-2. Configuration File
-3. Environment Variables
-4. Default options
-
-Example: Using different providers for different projects:
 ```bash
-# Set global defaults in .zshrc/.bashrc
-export LUMEN_AI_PROVIDER="openai"
-export LUMEN_AI_MODEL="gpt-5-mini"
-export LUMEN_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-
-# Override per project using config file
-{
-  "provider": "ollama",
-  "model": "llama3.2"
-}
-
-# Or override using CLI flags
-lumen -p "ollama" -m "llama3.2" draft
 ```
-## Contributors
 
-<a href="https://github.com/jnsahaj/lumen/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=jnsahaj/lumen" />
-</a>
+## Review Workflow
 
-Made with [contrib.rocks](https://contrib.rocks).
+1. Run `diff-log`.
+2. Pick an open PR.
+3. Move through files and hunks in the TUI.
+4. Press `i` to add a review annotation.
+5. Press `I` to view, edit, delete, copy, or export annotations.
+6. Press `s` to submit annotations to GitHub as a PR review.
 
-### Interested in Contributing?
+Line and range annotations become GitHub review comments. File-level annotations are included in the review body.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Common Commands
 
-# Star History
+```bash
+# Default product flow: pick an open PR
+diff-log
 
-<p align="center">
-  <a target="_blank" href="https://star-history.com/#jnsahaj/lumen&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=jnsahaj/lumen&type=Date&theme=dark">
-      <img alt="GitHub Star History for jnsahaj/lumen" src="https://api.star-history.com/svg?repos=jnsahaj/lumen&type=Date">
-    </picture>
-  </a>
-</p>
+# Same command, no hyphen
+difflog
+
+# Pick from open PRs explicitly
+diff-log diff --pr
+
+# Review a specific PR
+diff-log diff --pr 123
+diff-log diff https://github.com/OWNER/REPO/pull/123
+
+# Review local uncommitted changes
+diff-log diff
+
+# Review a commit or range
+diff-log diff HEAD~1
+diff-log diff main..feature
+
+# Focus or filter files
+diff-log diff --focus src/main.rs
+diff-log diff --file src/main.rs --file src/lib.rs
+
+# Soft-wrap long lines
+diff-log diff --wrap
+```
+
+The legacy `lumen` command is still installed by Cargo builds and keeps the older AI-oriented commands available.
+
+## Keybindings
+
+- `j/k` or arrow keys: move
+- `ctrl+j` / `ctrl+k`: next / previous file
+- `{` / `}`: previous / next hunk
+- `space`: mark file as viewed, synced to GitHub in PR mode
+- `i`: annotate selection, focused hunk, or whole file
+- `I`: manage annotations
+- `s`: submit PR review in PR mode
+- `/`: search current file
+- `ctrl+f`: search across all files
+- `tab`: toggle sidebar
+- `?`: show all keybindings
+- `q` or `esc`: quit
+
+## What Homebrew Installs
+
+The Homebrew formula is intentionally small and product-safe. It installs:
+
+- `git`, used for repo detection and local diff workflows
+- `gh`, used for GitHub PR listing, PR metadata, viewed-file sync, and review submission
+- prebuilt `diff-log` and `difflog` binaries
+
+It cannot perform GitHub login for you. Run `gh auth login --web --scopes "repo"` once after install.
+
+## Troubleshooting
+
+### `diff-log: command not found`
+
+Homebrew may not be on your shell path yet. Run:
+
+```bash
+if [ -x /opt/homebrew/bin/brew ]; then eval "$(/opt/homebrew/bin/brew shellenv)"; fi
+if [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
+```
+
+Then retry:
+
+```bash
+```
+
+### GitHub Says You Are Not Logged In
+
+```bash
+```
+
+Manual login URL if needed:
+
+https://github.com/login/device
+
+### Private Repo PRs Do Not Show Up
+
+Refresh `gh` permissions:
+
+```bash
+gh auth status
+```
+
+If the repo belongs to a GitHub organization with SSO, authorize GitHub CLI for that organization in GitHub settings.
+
+### No Open PRs Found
+
+Check what GitHub CLI sees:
+
+```bash
+```
+
+If this fails, fix `gh` auth or repo remotes first.
+
+### Repo Remote Is Not GitHub
+
+Pass the repo manually:
+
+```bash
+```
+
+### Review Submission Fails
+
+Common causes:
+
+- `gh` is not authenticated with `repo` scope
+- the PR changed since you opened it; press `r` to refresh and retry
+- your account does not have permission to review that repo
+
+## Privacy And Security
+
+- `diff-log` does not run a hosted service.
+- GitHub API calls go through the local `gh` CLI.
+- Auth tokens are managed by GitHub CLI, not by `diff-log`.
+- Review comments are only submitted when you confirm with `s`.
+
+## Maintainer Release Checklist
+
+The release script expects a Homebrew tap next to this repo:
+
+```bash
+gh repo create jnsahaj/homebrew-diff-log --public --clone=false
+git clone git@github.com:jnsahaj/homebrew-diff-log.git ../homebrew-diff-log
+```
+
+Then release:
+
+```bash
+./release.sh
+```
+
+The script builds macOS Intel and Apple Silicon binaries, uploads GitHub release tarballs, and writes `Formula/diff-log.rb` with:
+
+- `depends_on "git"`
+- `depends_on "gh"`
+- `bin.install "diff-log"`
+- `bin.install "difflog"`
+
+Users then install with:
+
+```bash
+brew install jnsahaj/diff-log/diff-log
+```

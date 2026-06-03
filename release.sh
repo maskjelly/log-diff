@@ -14,8 +14,9 @@ NC='\033[0m' # No Color
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOMEBREW_REPO="../homebrew-lumen"
-FORMULA_PATH="$HOMEBREW_REPO/Formula/lumen.rb"
+HOMEBREW_REPO="../homebrew-diff-log"
+FORMULA_PATH="$HOMEBREW_REPO/Formula/diff-log.rb"
+BINARY_NAME="diff-log"
 
 # Helper functions
 info() { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -106,9 +107,9 @@ check_prerequisites() {
         error "Homebrew repo not found at $HOMEBREW_REPO"
     fi
     
-    # Check if Formula file exists
+    # First launch may not have a formula yet; update_homebrew_formula creates it.
     if [[ ! -f "$FORMULA_PATH" ]]; then
-        error "Formula file not found at $FORMULA_PATH"
+        warn "Formula file not found at $FORMULA_PATH; it will be created during release"
     fi
     
     success "All prerequisites met"
@@ -187,8 +188,11 @@ build_release() {
         
         cargo build --release --target "$target"
         
-        if [[ ! -f "target/$target/release/lumen" ]]; then
-            error "Release binary not found at target/$target/release/lumen"
+        if [[ ! -f "target/$target/release/$BINARY_NAME" ]]; then
+            error "Release binary not found at target/$target/release/$BINARY_NAME"
+        fi
+        if [[ ! -f "target/$target/release/difflog" ]]; then
+            error "Release binary not found at target/$target/release/difflog"
         fi
         
         success "Built for $target"
@@ -205,10 +209,10 @@ create_tarball() {
         info "Creating tarball for $target..."
         
         cd "target/$target/release"
-        tar -czf "lumen-$target.tar.gz" lumen
+        tar -czf "$BINARY_NAME-$target.tar.gz" "$BINARY_NAME" difflog
         cd "$SCRIPT_DIR"
         
-        if [[ ! -f "target/$target/release/lumen-$target.tar.gz" ]]; then
+        if [[ ! -f "target/$target/release/$BINARY_NAME-$target.tar.gz" ]]; then
             error "Failed to create tarball for $target"
         fi
         
@@ -222,7 +226,7 @@ create_tarball() {
 calculate_sha256() {
     local target="$1"
     local sha256
-    sha256=$(shasum -a 256 "target/$target/release/lumen-$target.tar.gz" | awk '{print $1}')
+    sha256=$(shasum -a 256 "target/$target/release/$BINARY_NAME-$target.tar.gz" | awk '{print $1}')
     echo "$sha256"
 }
 
@@ -282,7 +286,7 @@ create_github_release() {
     # Collect all tarballs
     local tarballs=()
     for target in "${TARGETS[@]}"; do
-        tarballs+=("target/$target/release/lumen-$target.tar.gz")
+        tarballs+=("target/$target/release/$BINARY_NAME-$target.tar.gz")
     done
     
     # Create release with gh CLI
@@ -299,8 +303,8 @@ update_homebrew_formula() {
     local version="$1"
     local sha256_intel="$2"
     local sha256_arm="$3"
-    local url_intel="https://github.com/jnsahaj/lumen/releases/download/v$version/lumen-x86_64-apple-darwin.tar.gz"
-    local url_arm="https://github.com/jnsahaj/lumen/releases/download/v$version/lumen-aarch64-apple-darwin.tar.gz"
+    local url_intel="https://github.com/jnsahaj/lumen/releases/download/v$version/$BINARY_NAME-x86_64-apple-darwin.tar.gz"
+    local url_arm="https://github.com/jnsahaj/lumen/releases/download/v$version/$BINARY_NAME-aarch64-apple-darwin.tar.gz"
     
     info "Updating homebrew formula..."
     
@@ -310,11 +314,15 @@ update_homebrew_formula() {
     git pull origin main --rebase
     
     # Generate new formula content
-    cat > Formula/lumen.rb << EOF
-class Lumen < Formula
-  desc "lumen is a command-line tool that can show pretty diff, generate commit messages with AI, summarise diffs / commits, and more without requiring an API key."
+    mkdir -p Formula
+    cat > Formula/diff-log.rb << EOF
+class DiffLog < Formula
+  desc "Terminal PR reviewer for GitHub pull requests"
   homepage "https://github.com/jnsahaj/lumen"
   version "$version"
+  depends_on :macos
+  depends_on "git"
+  depends_on "gh"
 
   on_intel do
     url "$url_intel"
@@ -327,19 +335,24 @@ class Lumen < Formula
   end
 
   def install
-    bin.install "lumen"
+    bin.install "$BINARY_NAME"
+    bin.install "difflog"
+  end
+
+  test do
+    system "#{bin}/$BINARY_NAME", "--version"
   end
 end
 EOF
     
     if ! confirm "Commit and push these changes?"; then
-        git checkout Formula/lumen.rb
+        git checkout Formula/diff-log.rb
         cd "$SCRIPT_DIR"
         error "Aborted by user"
     fi
     
     # Commit and push
-    git add Formula/lumen.rb
+    git add Formula/diff-log.rb
     git commit -m "chore: Bump ver to $version"
     git push origin main
     
@@ -374,7 +387,7 @@ main() {
     
     echo ""
     echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}       Lumen Release Script${NC}"
+    echo -e "${GREEN}      diff-log Release Script${NC}"
     echo -e "${GREEN}========================================${NC}"
     if [[ "$AUTO_MODE" == true ]]; then
         echo -e "${GREEN}           (Auto Mode)${NC}"
@@ -466,7 +479,7 @@ main() {
     echo "  - GitHub release: https://github.com/jnsahaj/lumen/releases/tag/v$new_version"
     echo "  - Homebrew formula updated"
     echo ""
-    echo "Users can now install with: brew install jnsahaj/lumen/lumen"
+    echo "Users can now install with: brew install jnsahaj/diff-log/diff-log"
     echo ""
 }
 

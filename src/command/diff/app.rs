@@ -53,7 +53,8 @@ use super::types::{
 };
 use super::watcher::{setup_watcher, WatchEvent};
 use super::{
-    fetch_viewed_files, mark_file_as_viewed_async, unmark_file_as_viewed_async, DiffOptions, PrInfo,
+    fetch_viewed_files, mark_file_as_viewed_async, submit_pr_review, unmark_file_as_viewed_async,
+    DiffOptions, PrInfo,
 };
 use spinoff::{spinners, Color, Spinner};
 
@@ -250,6 +251,12 @@ fn format_annotation_preview(annotation: &super::state::Annotation) -> String {
     }
 }
 
+enum ExitAction {
+    None,
+    PrintAnnotations,
+    SubmitPrReview,
+}
+
 pub fn run_app_with_pr(
     options: DiffOptions,
     pr_info: PrInfo,
@@ -325,8 +332,8 @@ fn run_app_internal(
     // Set diff reference for annotation export context
     let diff_ref_str = if let Some(pr) = &pr_info {
         Some(format!(
-            "PR #{} ({}...{})",
-            pr.number, pr.base_ref, pr.head_ref
+            "PR #{} {} ({}...{})",
+            pr.number, pr.title, pr.base_ref, pr.head_ref
         ))
     } else {
         options.reference.as_ref().map(|r| match r {
@@ -387,7 +394,7 @@ fn run_app_internal(
     let mut annotation_editor: Option<AnnotationEditor> = None;
     let mut pending_watch_event: Option<WatchEvent> = None;
     let mut pending_events: VecDeque<Event> = VecDeque::new();
-    let mut send_annotations_on_exit = false;
+    let mut exit_action = ExitAction::None;
 
     'main: loop {
         if let Some(ref rx) = watch_rx {
@@ -453,7 +460,8 @@ fn run_app_internal(
             let row_offset = std::cell::Cell::new(0usize);
             let gaps_cell = std::cell::RefCell::new(Vec::new());
             let rects_cell = std::cell::RefCell::new(Vec::new());
-            let editor_rect_cell: std::cell::Cell<Option<ratatui::layout::Rect>> = std::cell::Cell::new(None);
+            let editor_rect_cell: std::cell::Cell<Option<ratatui::layout::Rect>> =
+                std::cell::Cell::new(None);
             terminal.draw(|frame| {
                 let (offset, gaps, rects, er) = render_diff(
                     frame,
@@ -716,14 +724,12 @@ fn run_app_internal(
                                     if let Some(ann) = state.get_annotation_by_id(annotation_id) {
                                         let filename = ann.filename.clone();
                                         let target = ann.target.clone();
-                                        // Find and switch to the file
                                         if let Some(file_index) = state
                                             .file_diffs
                                             .iter()
                                             .position(|f| f.filename == filename)
                                         {
                                             state.select_file(file_index);
-                                            // Scroll to annotation's line range
                                             if let super::state::AnnotationTarget::LineRange {
                                                 panel,
                                                 start_line,
@@ -732,7 +738,6 @@ fn run_app_internal(
                                             {
                                                 state.ensure_cache();
                                                 let sbs = state.side_by_side_ref();
-                                                // Find the side_by_side index for start_line
                                                 if let Some(sbs_idx) = find_sbs_index_for_line(
                                                     sbs,
                                                     *panel,
@@ -757,7 +762,6 @@ fn run_app_internal(
                                             ann.target.clone(),
                                         )
                                         .with_existing(ann.id, &ann.content, ann.created_at);
-                                        // Jump to the file
                                         let filename = ann.filename.clone();
                                         if let Some(file_index) = state
                                             .file_diffs
@@ -772,7 +776,6 @@ fn run_app_internal(
                                 }
                                 ModalResult::AnnotationDelete { annotation_id } => {
                                     state.remove_annotation(annotation_id);
-                                    // Refresh the modal if there are still annotations
                                     if !state.annotations.is_empty() {
                                         let mut sorted_annotations = state.annotations.clone();
                                         sorted_annotations.sort_by_key(|a| a.created_at);
@@ -790,7 +793,6 @@ fn run_app_internal(
                                     }
                                 }
                                 ModalResult::AnnotationCopyAll => {
-                                    // Copy all annotations to clipboard
                                     let formatted = state.format_annotations_for_export();
                                     if let Ok(mut clipboard) = arboard::Clipboard::new() {
                                         let _ = clipboard.set_text(&formatted);
@@ -798,14 +800,10 @@ fn run_app_internal(
                                     active_modal = None;
                                 }
                                 ModalResult::AnnotationExport(filename) => {
-                                    // Write annotations to file
                                     let formatted = state.format_annotations_for_export();
                                     match std::fs::write(&filename, &formatted) {
-                                        Ok(_) => {
-                                            active_modal = None;
-                                        }
+                                        Ok(_) => active_modal = None,
                                         Err(e) => {
-                                            // Set error message on the modal
                                             if let Some(ref mut modal) = active_modal {
                                                 if let ModalContent::Annotations {
                                                     error_message,
@@ -815,28 +813,23 @@ fn run_app_internal(
                                                 {
                                                     *error_message =
                                                         Some(format!("Failed to write: {}", e));
-                                                    *export_input = None; // Close input, keep modal open
+                                                    *export_input = None;
                                                 }
                                             }
                                         }
                                     }
                                 }
                                 ModalResult::Confirmed => {
-                                    send_annotations_on_exit = true;
-                                    break 'main;
+                                    if !matches!(exit_action, ExitAction::None) {
+                                        break 'main;
+                                    }
+                                    active_modal = None;
                                 }
                                 ModalResult::JumpToLine {
                                     file_index,
                                     sbs_line_index,
                                     panel: _panel,
                                 } => {
-                                    // Reveal + switch to the target file, then pin the
-                                    // matched sbs line to the top of the content area.
-                                    // The diff view renders sticky-context rows and any
-                                    // file-level annotation slots ABOVE scroll=0, so
-                                    // setting scroll = sbs_line_index lands the line
-                                    // right beneath those — exactly where the user
-                                    // expects "pinned to the top" to be.
                                     state.reveal_file(file_index);
                                     state.select_file(file_index);
                                     if let Some(idx) =
@@ -847,9 +840,6 @@ fn run_app_internal(
                                             terminal.size()?.height.saturating_sub(5) as usize;
                                         ensure_sidebar_visible(&mut state, visible_height);
                                     }
-                                    // Compute max_scroll for the just-switched file
-                                    // before pinning scroll, so we don't overscroll
-                                    // past the last visible row.
                                     state.ensure_cache();
                                     let sbs_len = state.side_by_side_ref().len();
                                     let vh = terminal.size()?.height.saturating_sub(5) as usize;
@@ -857,7 +847,11 @@ fn run_app_internal(
                                     state.scroll = (sbs_line_index as u16).min(max_scroll);
                                     active_modal = None;
                                 }
-                                ModalResult::Dismissed | ModalResult::Selected(_, _) => {
+                                ModalResult::Dismissed => {
+                                    exit_action = ExitAction::None;
+                                    active_modal = None;
+                                }
+                                ModalResult::Selected(_, _) => {
                                     active_modal = None;
                                 }
                             }
@@ -1879,12 +1873,23 @@ fn run_app_internal(
                             if !state.annotations.is_empty() {
                                 let n = state.annotations.len();
                                 let noun = if n == 1 { "annotation" } else { "annotations" };
-                                let msg = format!(
-                                    "Exit lumen and write {} {} to stdout?\n\n\
-                                     Use this to pipe feedback back to a coding agent.",
-                                    n, noun,
-                                );
-                                active_modal = Some(Modal::confirm("Send annotations", msg));
+                                if let Some(pr) = &pr_info {
+                                    let msg = format!(
+                                        "Submit {} {} to GitHub on #{}?\n\n\
+                                         File-level annotations become part of the review body.",
+                                        n, noun, pr.number,
+                                    );
+                                    exit_action = ExitAction::SubmitPrReview;
+                                    active_modal = Some(Modal::confirm("Submit PR review", msg));
+                                } else {
+                                    let msg = format!(
+                                        "Exit lumen and write {} {} to stdout?\n\n\
+                                         Use this to pipe feedback back to a coding agent.",
+                                        n, noun,
+                                    );
+                                    exit_action = ExitAction::PrintAnnotations;
+                                    active_modal = Some(Modal::confirm("Send annotations", msg));
+                                }
                             }
                         }
                         KeyCode::Char('y') => {
@@ -1913,10 +1918,8 @@ fn run_app_internal(
                         }
                         KeyCode::Char('e') => {
                             if !state.file_diffs.is_empty() {
-                                let _ = execute!(
-                                    terminal.backend_mut(),
-                                    PopKeyboardEnhancementFlags
-                                );
+                                let _ =
+                                    execute!(terminal.backend_mut(), PopKeyboardEnhancementFlags);
                                 execute!(
                                     terminal.backend_mut(),
                                     DisableMouseCapture,
@@ -1965,7 +1968,9 @@ fn run_app_internal(
                                 )?;
                                 let _ = execute!(
                                     terminal.backend_mut(),
-                                    PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+                                    PushKeyboardEnhancementFlags(
+                                        KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                                    )
                                 );
                                 terminal.clear()?;
                             }
@@ -2119,10 +2124,10 @@ fn run_app_internal(
                                                 key: "h/l or left/right",
                                                 description: "Scroll horizontally",
                                             },
-                                        KeyBind {
-                                            key: "w",
-                                            description: "Toggle watch mode",
-                                        },
+                                            KeyBind {
+                                                key: "w",
+                                                description: "Toggle watch mode",
+                                            },
                                             KeyBind {
                                                 key: "gg / G",
                                                 description: "Scroll to top / bottom",
@@ -2166,7 +2171,8 @@ fn run_app_internal(
                                             },
                                             KeyBind {
                                                 key: "ctrl+f",
-                                                description: "Global fuzzy search (all files, with preview)",
+                                                description:
+                                                    "Global fuzzy search (all files, with preview)",
                                             },
                                             KeyBind {
                                                 key: "n or down",
@@ -2199,7 +2205,7 @@ fn run_app_internal(
                                             },
                                             KeyBind {
                                                 key: "s",
-                                                description: "Exit & send annotations to stdout",
+                                                description: "Submit PR review / send annotations",
                                             },
                                         ],
                                     },
@@ -2222,12 +2228,34 @@ fn run_app_internal(
     )?;
     disable_raw_mode()?;
 
-    if send_annotations_on_exit {
-        let formatted = state.format_annotations_for_export();
-        let stdout = io::stdout();
-        let mut handle = stdout.lock();
-        handle.write_all(formatted.as_bytes())?;
-        handle.write_all(b"\n")?;
+    match exit_action {
+        ExitAction::None => {}
+        ExitAction::PrintAnnotations => {
+            let formatted = state.format_annotations_for_export();
+            let stdout = io::stdout();
+            let mut handle = stdout.lock();
+            handle.write_all(formatted.as_bytes())?;
+            handle.write_all(b"\n")?;
+        }
+        ExitAction::SubmitPrReview => {
+            if let Some(pr) = &pr_info {
+                match submit_pr_review(pr, &state.annotations) {
+                    Ok(count) => {
+                        println!(
+                            "Submitted {} review {} to {}/{}#{}",
+                            count,
+                            if count == 1 { "comment" } else { "comments" },
+                            pr.repo_owner,
+                            pr.repo_name,
+                            pr.number
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("\x1b[91merror:\x1b[0m failed to submit review: {}", e);
+                    }
+                }
+            }
+        }
     }
 
     Ok(())

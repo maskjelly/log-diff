@@ -8,6 +8,18 @@ keywords = ["cli", "terminal", "ai", "git", "commit"]
 categories = ["command-line-interface", "command-line-utilities"]
 repository = "https://github.com/jnsahaj/lumen"
 
+[[bin]]
+name = "lumen"
+path = "src/main.rs"
+
+[[bin]]
+name = "diff-log"
+path = "src/main.rs"
+
+[[bin]]
+name = "difflog"
+path = "src/main.rs"
+
 [dependencies]
 clap = { version = "4.4", features = ["derive", "env"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

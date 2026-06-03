@@ -13,8 +13,7 @@ pub enum VcsOverride {
 }
 
 #[derive(Parser)]
-#[command(name = "lumen")]
-#[command(about = "AI-powered CLI tool for git commit summaries", long_about = None)]
+#[command(about = "Terminal PR reviewer and diff viewer", long_about = None)]
 #[command(version)]
 pub struct Cli {
     /// Path to configuration file eg: ./path/to/lumen.config.json
@@ -35,7 +34,7 @@ pub struct Cli {
     pub vcs: Option<VcsOverride>,
 
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Debug)]
@@ -112,8 +111,8 @@ pub enum Commands {
         #[arg(value_parser = clap::value_parser!(CommitReference))]
         reference: Option<CommitReference>,
 
-        /// View a GitHub pull request (number or URL)
-        #[arg(long)]
+        /// View a GitHub pull request (number or URL). Omit value to choose from open PRs.
+        #[arg(long, num_args = 0..=1, default_missing_value = "")]
         pr: Option<String>,
 
         /// Filter to specific files
@@ -173,9 +172,15 @@ mod tests {
     #[test]
     fn test_diff_wrap_flag_parses() {
         let cli = Cli::try_parse_from(["lumen", "diff", "--wrap"]).unwrap();
-        match cli.command {
+        match cli.command.unwrap() {
             Commands::Diff { wrap, .. } => assert!(wrap),
             _ => panic!("expected diff command"),
         }
+    }
+
+    #[test]
+    fn test_no_command_parses_for_default_pr_reviewer() {
+        let cli = Cli::try_parse_from(["diff-log"]).unwrap();
+        assert!(cli.command.is_none());
     }
 }

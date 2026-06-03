@@ -34,21 +34,26 @@ async fn run() -> Result<(), LumenError> {
         Err(e) => return Err(e),
     };
 
-    let provider = provider::LumenProvider::new(config.provider, config.api_key, config.model)?;
-    let command = command::LumenCommand::new(provider);
-
     // Get VCS backend based on CLI override or auto-detection
     let cwd = std::env::current_dir()?;
     let vcs_override = cli.vcs.map(VcsBackendType::from);
     let backend = vcs::get_backend(&cwd, vcs_override)?;
 
-    match cli.command {
+    let command_to_run = cli.command.unwrap_or_else(default_pr_reviewer_command);
+
+    match command_to_run {
         Commands::Explain {
             reference,
             staged,
             query,
             list,
         } => {
+            let provider = provider::LumenProvider::new(
+                config.provider,
+                config.api_key.clone(),
+                config.model.clone(),
+            )?;
+            let command = command::LumenCommand::new(provider);
             let git_entity = if list {
                 let sha = LumenCommand::get_sha_from_fzf(backend.as_ref())?;
                 let info = backend.get_commit(&sha)?;
@@ -98,6 +103,12 @@ async fn run() -> Result<(), LumenError> {
                 .await?;
         }
         Commands::List => {
+            let provider = provider::LumenProvider::new(
+                config.provider,
+                config.api_key.clone(),
+                config.model.clone(),
+            )?;
+            let command = command::LumenCommand::new(provider);
             eprintln!("Warning: 'lumen list' is deprecated. Use 'lumen explain --list' instead.");
             command
                 .execute(command::CommandType::List {
@@ -106,6 +117,12 @@ async fn run() -> Result<(), LumenError> {
                 .await?
         }
         Commands::Draft { context } => {
+            let provider = provider::LumenProvider::new(
+                config.provider,
+                config.api_key.clone(),
+                config.model.clone(),
+            )?;
+            let command = command::LumenCommand::new(provider);
             // Draft always uses staged diff (git convention)
             let diff = backend.get_working_tree_diff(true)?;
             let git_entity = GitEntity::Diff(Diff::from_working_tree_diff(diff, true)?);
@@ -118,6 +135,12 @@ async fn run() -> Result<(), LumenError> {
                 .await?
         }
         Commands::Operate { query } => {
+            let provider = provider::LumenProvider::new(
+                config.provider,
+                config.api_key.clone(),
+                config.model.clone(),
+            )?;
+            let command = command::LumenCommand::new(provider);
             command
                 .execute(command::CommandType::Operate { query })
                 .await?;
@@ -152,6 +175,20 @@ async fn run() -> Result<(), LumenError> {
     }
 
     Ok(())
+}
+
+fn default_pr_reviewer_command() -> Commands {
+    Commands::Diff {
+        reference: None,
+        pr: Some(String::new()),
+        file: None,
+        watch: false,
+        theme: None,
+        stacked: false,
+        focus: None,
+        origin: None,
+        wrap: false,
+    }
 }
 
 fn read_from_stdin() -> Result<String, LumenError> {
