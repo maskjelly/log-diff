@@ -6,7 +6,7 @@ license = "MIT"
 description = "lumen is a command-line tool that uses AI to generate commit messages, summarise git diffs or past commits, and more."
 keywords = ["cli", "terminal", "ai", "git", "commit"]
 categories = ["command-line-interface", "command-line-utilities"]
-repository = "https://github.com/jnsahaj/lumen"
+repository = "https://github.com/maskjelly/log-diff"
 
 [[bin]]
 name = "lumen"

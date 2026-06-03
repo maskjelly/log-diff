@@ -245,14 +245,14 @@ generate_release_notes() {
         while IFS= read -r line; do
             local hash=$(echo "$line" | cut -d' ' -f1)
             local message=$(echo "$line" | cut -d' ' -f2-)
-            notes+="* $message ([${hash:0:7}](https://github.com/jnsahaj/lumen/commit/$hash))\n"
+            notes+="* $message ([${hash:0:7}](https://github.com/maskjelly/log-diff/commit/$hash))\n"
         done < <(git log --oneline --format="%H %s")
     else
         info "Generating changelog since $last_tag" >&2
         while IFS= read -r line; do
             local hash=$(echo "$line" | cut -d' ' -f1)
             local message=$(echo "$line" | cut -d' ' -f2-)
-            notes+="* $message ([${hash:0:7}](https://github.com/jnsahaj/lumen/commit/$hash))\n"
+            notes+="* $message ([${hash:0:7}](https://github.com/maskjelly/log-diff/commit/$hash))\n"
         done < <(git log --oneline --format="%H %s" "$last_tag"..HEAD)
     fi
     
@@ -303,8 +303,8 @@ update_homebrew_formula() {
     local version="$1"
     local sha256_intel="$2"
     local sha256_arm="$3"
-    local url_intel="https://github.com/jnsahaj/lumen/releases/download/v$version/$BINARY_NAME-x86_64-apple-darwin.tar.gz"
-    local url_arm="https://github.com/jnsahaj/lumen/releases/download/v$version/$BINARY_NAME-aarch64-apple-darwin.tar.gz"
+    local url_intel="https://github.com/maskjelly/log-diff/releases/download/v$version/$BINARY_NAME-x86_64-apple-darwin.tar.gz"
+    local url_arm="https://github.com/maskjelly/log-diff/releases/download/v$version/$BINARY_NAME-aarch64-apple-darwin.tar.gz"
     
     info "Updating homebrew formula..."
     
@@ -318,7 +318,7 @@ update_homebrew_formula() {
     cat > Formula/diff-log.rb << EOF
 class DiffLog < Formula
   desc "Terminal PR reviewer for GitHub pull requests"
-  homepage "https://github.com/jnsahaj/lumen"
+  homepage "https://github.com/maskjelly/log-diff"
   version "$version"
   depends_on :macos
   depends_on "git"
@@ -476,10 +476,10 @@ main() {
     echo "Summary:"
     echo "  - Cargo.toml updated to v$new_version"
     echo "  - Published to crates.io"
-    echo "  - GitHub release: https://github.com/jnsahaj/lumen/releases/tag/v$new_version"
+    echo "  - GitHub release: https://github.com/maskjelly/log-diff/releases/tag/v$new_version"
     echo "  - Homebrew formula updated"
     echo ""
-    echo "Users can now install with: brew install jnsahaj/diff-log/diff-log"
+    echo "Users can now install with: brew install maskjelly/diff-log/diff-log"
     echo ""
 }
 

@@ -36,7 +36,7 @@ if [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
 ### 2. Install diff-log
 
 ```bash
-brew install jnsahaj/diff-log/diff-log
+brew install maskjelly/diff-log/diff-log
 ```
 
 This Homebrew formula installs the runtime dependencies too:
@@ -231,8 +231,8 @@ Common causes:
 The release script expects a Homebrew tap next to this repo:
 
 ```bash
-gh repo create jnsahaj/homebrew-diff-log --public --clone=false
-git clone git@github.com:jnsahaj/homebrew-diff-log.git ../homebrew-diff-log
+gh repo create maskjelly/homebrew-diff-log --public --clone=false
+git clone git@github.com:maskjelly/homebrew-diff-log.git ../homebrew-diff-log
 ```
 
 Then release:
@@ -251,5 +251,5 @@ The script builds macOS Intel and Apple Silicon binaries, uploads GitHub release
 Users then install with:
 
 ```bash
-brew install jnsahaj/diff-log/diff-log
+brew install maskjelly/diff-log/diff-log
 ```
