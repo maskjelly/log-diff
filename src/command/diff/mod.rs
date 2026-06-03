@@ -49,7 +49,6 @@ pub struct PrInfo {
     pub repo_owner: String,
     pub repo_name: String,
     pub title: String,
-    pub author: String,
     pub base_ref: String,
     pub head_ref: String,
     pub head_sha: String,
@@ -223,7 +222,6 @@ struct GhPullRequest {
     number: u64,
     node_id: String,
     title: String,
-    user: Option<GhUser>,
     base: GhPrRef,
     head: GhPrRef,
 }
@@ -307,10 +305,6 @@ fn fetch_pr_info(pr_input: &str, repo_override: Option<&str>) -> Result<PrInfo, 
         repo_owner,
         repo_name,
         title: pr.title,
-        author: pr
-            .user
-            .map(|u| u.login)
-            .unwrap_or_else(|| "unknown".to_string()),
         base_ref: pr.base.ref_name,
         head_ref: pr.head.ref_name,
         head_sha: pr.head.sha,

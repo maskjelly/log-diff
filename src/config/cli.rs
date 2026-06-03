@@ -13,6 +13,7 @@ pub enum VcsOverride {
 }
 
 #[derive(Parser)]
+#[command(name = "diff-log")]
 #[command(about = "Terminal PR reviewer and diff viewer", long_about = None)]
 #[command(version)]
 pub struct Cli {
