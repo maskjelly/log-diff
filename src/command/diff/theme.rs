@@ -165,25 +165,25 @@ impl Theme {
                 deleted_word_bg: Color::Rgb(100, 50, 50),
             },
             ui: UiColors {
-                border_focused: Color::Cyan,
-                border_unfocused: Color::DarkGray,
-                text_primary: Color::Rgb(230, 230, 230),
-                text_secondary: Color::Rgb(200, 200, 200),
-                text_muted: Color::Rgb(140, 140, 160),
-                line_number: Color::DarkGray,
-                bg: Color::Reset,
-                footer_branch_bg: Color::Rgb(50, 50, 70),
-                footer_branch_fg: Color::Rgb(180, 180, 220),
-                status_added: Color::Green,
-                status_modified: Color::Yellow,
-                status_deleted: Color::Red,
+                border_focused: Color::Rgb(125, 211, 252),
+                border_unfocused: Color::Rgb(51, 65, 85),
+                text_primary: Color::Rgb(226, 232, 240),
+                text_secondary: Color::Rgb(203, 213, 225),
+                text_muted: Color::Rgb(100, 116, 139),
+                line_number: Color::Rgb(71, 85, 105),
+                bg: Color::Rgb(15, 23, 42),
+                footer_branch_bg: Color::Rgb(30, 41, 59),
+                footer_branch_fg: Color::Rgb(186, 230, 253),
+                status_added: Color::Rgb(74, 222, 128),
+                status_modified: Color::Rgb(250, 204, 21),
+                status_deleted: Color::Rgb(248, 113, 113),
                 stats_added: Color::Rgb(80, 200, 120),
                 stats_removed: Color::Rgb(240, 80, 80),
-                selection_bg: Color::Cyan,
-                selection_fg: Color::Black,
-                highlight: Color::Yellow,
-                viewed: Color::Green,
-                watching: Color::Yellow,
+                selection_bg: Color::Rgb(56, 189, 248),
+                selection_fg: Color::Rgb(2, 6, 23),
+                highlight: Color::Rgb(251, 191, 36),
+                viewed: Color::Rgb(52, 211, 153),
+                watching: Color::Rgb(251, 191, 36),
                 search_match_bg: Color::Rgb(100, 80, 20),
                 search_match_fg: Color::Rgb(255, 220, 120),
                 search_current_bg: Color::Rgb(255, 165, 0),
@@ -316,7 +316,7 @@ impl Theme {
                 text_secondary: Color::Rgb(166, 173, 200),   // subtext0
                 text_muted: Color::Rgb(108, 112, 134),       // overlay0
                 line_number: Color::Rgb(88, 91, 112),        // overlay0
-                bg: Color::Rgb(24, 24, 37),           // mantle
+                bg: Color::Rgb(24, 24, 37),                  // mantle
                 footer_branch_bg: Color::Rgb(49, 50, 68),    // surface0
                 footer_branch_fg: Color::Rgb(137, 180, 250), // blue
                 status_added: Color::Rgb(166, 227, 161),     // green
@@ -499,7 +499,7 @@ impl Theme {
                 text_secondary: Color::Rgb(216, 222, 233), // nord4
                 text_muted: Color::Rgb(76, 86, 106),       // nord3
                 line_number: Color::Rgb(76, 86, 106),
-                bg: Color::Rgb(59, 66, 82),        // nord1
+                bg: Color::Rgb(59, 66, 82),               // nord1
                 footer_branch_bg: Color::Rgb(67, 76, 94), // nord2
                 footer_branch_fg: Color::Rgb(136, 192, 208),
                 status_added: Color::Rgb(163, 190, 140),

@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::io::{self, IsTerminal, Write};
 use std::sync::mpsc::TryRecvError;
 use std::time::Duration;
@@ -262,6 +262,8 @@ pub fn run_app_with_pr(
     pr_info: PrInfo,
     backend: &dyn VcsBackend,
 ) -> io::Result<()> {
+    let viewed_pr = pr_info.clone();
+    let viewed_handle = std::thread::spawn(move || fetch_viewed_files(&viewed_pr).ok());
     let mut spinner = Spinner::new(
         spinners::Dots,
         format!(
@@ -273,7 +275,15 @@ pub fn run_app_with_pr(
     match load_pr_file_diffs(&pr_info) {
         Ok(file_diffs) => {
             spinner.success(&format!("Fetched {} files", file_diffs.len()));
-            run_app_internal(options, Some(pr_info), file_diffs, None, backend)
+            let preloaded_viewed_paths = viewed_handle.join().ok().flatten();
+            run_app_internal(
+                options,
+                Some(pr_info),
+                file_diffs,
+                None,
+                backend,
+                preloaded_viewed_paths,
+            )
         }
         Err(e) => {
             spinner.fail(&e);
@@ -288,7 +298,7 @@ pub fn run_app(
     backend: &dyn VcsBackend,
 ) -> io::Result<()> {
     let file_diffs = load_file_diffs(&options, backend);
-    run_app_internal(options, pr_info, file_diffs, None, backend)
+    run_app_internal(options, pr_info, file_diffs, None, backend, None)
 }
 
 pub fn run_app_stacked(
@@ -299,18 +309,22 @@ pub fn run_app_stacked(
     // Load the first commit's diff
     let first_commit = &commits[0];
     let file_diffs = load_single_commit_diffs(&first_commit.commit_id, &options.file, backend);
-    run_app_internal(options, None, file_diffs, Some(commits), backend)
+    run_app_internal(options, None, file_diffs, Some(commits), backend, None)
+}
+
+fn apply_viewed_paths(viewed_paths: &HashSet<String>, state: &mut AppState) {
+    state.viewed_files.clear();
+    for (idx, diff) in state.file_diffs.iter().enumerate() {
+        if viewed_paths.contains(&diff.filename) {
+            state.viewed_files.insert(idx);
+        }
+    }
 }
 
 /// Sync viewed files from GitHub to local state
 fn sync_viewed_files_from_github(pr_info: &PrInfo, state: &mut AppState) {
     if let Ok(viewed_paths) = fetch_viewed_files(pr_info) {
-        state.viewed_files.clear();
-        for (idx, diff) in state.file_diffs.iter().enumerate() {
-            if viewed_paths.contains(&diff.filename) {
-                state.viewed_files.insert(idx);
-            }
-        }
+        apply_viewed_paths(&viewed_paths, state);
     }
 }
 
@@ -320,6 +334,7 @@ fn run_app_internal(
     file_diffs: Vec<super::types::FileDiff>,
     stacked_commits: Option<Vec<StackedCommitInfo>>,
     backend: &dyn VcsBackend,
+    preloaded_viewed_paths: Option<HashSet<String>>,
 ) -> io::Result<()> {
     theme::init(options.theme.as_deref());
     highlight::init();
@@ -357,7 +372,11 @@ fn run_app_internal(
             format!("Syncing viewed status for {} files", state.file_diffs.len()),
             Color::Cyan,
         );
-        sync_viewed_files_from_github(pr, &mut state);
+        if let Some(viewed_paths) = preloaded_viewed_paths {
+            apply_viewed_paths(&viewed_paths, &mut state);
+        } else {
+            sync_viewed_files_from_github(pr, &mut state);
+        }
         let viewed_count = state.viewed_files.len();
         spinner.success(&format!("{} files marked as viewed", viewed_count));
     }

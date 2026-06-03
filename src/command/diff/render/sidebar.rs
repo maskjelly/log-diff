@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use ratatui::{
     prelude::*,
@@ -7,6 +7,100 @@ use ratatui::{
 
 use crate::command::diff::theme;
 use crate::command::diff::types::{FileStatus, SidebarItem};
+
+#[derive(Default)]
+struct DirectoryStats {
+    files: usize,
+    viewed: usize,
+    added: usize,
+    modified: usize,
+    deleted: usize,
+}
+
+fn item_depth(item: &SidebarItem) -> usize {
+    match item {
+        SidebarItem::Directory { depth, .. } | SidebarItem::File { depth, .. } => *depth,
+    }
+}
+
+fn has_later_sibling_at_depth(
+    visible_indices: &[usize],
+    visible_pos: usize,
+    items: &[SidebarItem],
+    depth: usize,
+) -> bool {
+    for idx in visible_indices.iter().skip(visible_pos + 1) {
+        let next_depth = item_depth(&items[*idx]);
+        if next_depth < depth {
+            return false;
+        }
+        if next_depth == depth {
+            return true;
+        }
+    }
+    false
+}
+
+fn tree_prefix(visible_indices: &[usize], visible_pos: usize, items: &[SidebarItem]) -> String {
+    let depth = item_depth(&items[visible_indices[visible_pos]]);
+    let mut prefix = String::new();
+
+    for level in 0..depth {
+        if has_later_sibling_at_depth(visible_indices, visible_pos, items, level) {
+            prefix.push_str("│  ");
+        } else {
+            prefix.push_str("   ");
+        }
+    }
+
+    if has_later_sibling_at_depth(visible_indices, visible_pos, items, depth) {
+        prefix.push_str("├─");
+    } else {
+        prefix.push_str("└─");
+    }
+
+    prefix
+}
+
+fn collect_directory_stats(
+    sidebar_items: &[SidebarItem],
+    viewed_files: &HashSet<usize>,
+) -> HashMap<String, DirectoryStats> {
+    let mut stats = HashMap::new();
+
+    for item in sidebar_items {
+        if let SidebarItem::Directory { path, .. } = item {
+            let mut dir_stats = DirectoryStats::default();
+            let child_prefix = format!("{}/", path);
+
+            for child in sidebar_items {
+                if let SidebarItem::File {
+                    path: file_path,
+                    file_index,
+                    status,
+                    ..
+                } = child
+                {
+                    if file_path.starts_with(&child_prefix) {
+                        dir_stats.files += 1;
+                        if viewed_files.contains(file_index) {
+                            dir_stats.viewed += 1;
+                        }
+                        match status {
+                            FileStatus::Added => dir_stats.added += 1,
+                            FileStatus::Modified => dir_stats.modified += 1,
+                            FileStatus::Deleted => dir_stats.deleted += 1,
+                        }
+                    }
+                }
+            }
+
+            stats.insert(path.clone(), dir_stats);
+        }
+    }
+
+    stats
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn render_sidebar(
@@ -28,97 +122,13 @@ pub fn render_sidebar(
     let t = theme::get();
     let bg = t.ui.bg;
     let visible_height = area.height.saturating_sub(2) as usize;
+    let directory_stats = collect_directory_stats(sidebar_items, viewed_files);
+    let viewed_count = viewed_files.len().min(total_files);
     let lines: Vec<Line> = sidebar_visible
         .iter()
         .enumerate()
         .map(|(i, item_idx)| {
             let item = &sidebar_items[*item_idx];
-            let (prefix, status_symbol, status_color, name, is_current_file, is_viewed) = match item
-            {
-                SidebarItem::Directory {
-                    name, path, depth, ..
-                } => {
-                    let indent = "  ".repeat(*depth);
-                    let all_children_viewed = sidebar_items.iter().all(|child| {
-                        if let SidebarItem::File {
-                            path: file_path,
-                            file_index,
-                            ..
-                        } = child
-                        {
-                            if file_path.starts_with(&format!("{}/", path)) {
-                                return viewed_files.contains(file_index);
-                            }
-                        }
-                        true
-                    });
-                    let has_children = sidebar_items.iter().any(|child| {
-                        if let SidebarItem::File {
-                            path: file_path, ..
-                        } = child
-                        {
-                            file_path.starts_with(&format!("{}/", path))
-                        } else {
-                            false
-                        }
-                    });
-                    let marker = if has_children && all_children_viewed {
-                        "✓ "
-                    } else {
-                        "  "
-                    };
-                    let status_symbol = if has_children {
-                        if collapsed_dirs.contains(path) {
-                            "▶"
-                        } else {
-                            "▼"
-                        }
-                    } else {
-                        " "
-                    };
-                    (
-                        format!("{}{}", indent, marker),
-                        status_symbol.to_string(),
-                        None,
-                        format!(" {}", name),
-                        false,
-                        all_children_viewed && has_children,
-                    )
-                }
-                SidebarItem::File {
-                    name,
-                    file_index,
-                    depth,
-                    status,
-                    ..
-                } => {
-                    let indent = "  ".repeat(*depth);
-                    let viewed = viewed_files.contains(file_index);
-                    let is_current = *file_index == current_file;
-                    let marker = if is_current {
-                        "▸ "
-                    } else if viewed {
-                        "✓ "
-                    } else {
-                        "  "
-                    };
-                    let status_color = match status {
-                        FileStatus::Modified => Some(t.ui.status_modified),
-                        FileStatus::Added => Some(t.ui.status_added),
-                        FileStatus::Deleted => Some(t.ui.status_deleted),
-                    };
-                    let status_symbol = status.symbol().to_string();
-                    (
-                        format!("{}{}", indent, marker),
-                        status_symbol,
-                        status_color,
-                        format!(" {}", name),
-                        is_current,
-                        viewed,
-                    )
-                }
-            };
-
             let is_selected = i == sidebar_selected;
             let base_style = if is_selected {
                 Style::default().fg(t.ui.selection_fg).bg(if is_focused {
@@ -126,27 +136,156 @@ pub fn render_sidebar(
                 } else {
                     t.ui.border_unfocused
                 })
-            } else if is_current_file {
-                Style::default().fg(t.ui.highlight)
-            } else if is_viewed {
-                Style::default().fg(t.ui.viewed)
             } else {
                 Style::default()
             };
 
-            let status_style = if is_selected {
+            let prefix = tree_prefix(sidebar_visible, i, sidebar_items);
+            let prefix_style = if is_selected {
                 base_style
-            } else if let Some(color) = status_color {
-                Style::default().fg(color)
             } else {
-                base_style
+                Style::default().fg(t.ui.text_muted)
             };
 
-            Line::from(vec![
-                Span::styled(prefix, base_style),
-                Span::styled(status_symbol, status_style),
-                Span::styled(name, base_style),
-            ])
+            match item {
+                SidebarItem::Directory { name, path, .. } => {
+                    let stats = directory_stats.get(path);
+                    let files = stats.map(|s| s.files).unwrap_or(0);
+                    let viewed = stats.map(|s| s.viewed).unwrap_or(0);
+                    let fully_viewed = files > 0 && viewed == files;
+                    let arrow = if files > 0 {
+                        if collapsed_dirs.contains(path) {
+                            "▸"
+                        } else {
+                            "▾"
+                        }
+                    } else {
+                        " "
+                    };
+                    let marker = if fully_viewed { "✓" } else { " " };
+                    let dir_style = if is_selected {
+                        base_style.add_modifier(Modifier::BOLD)
+                    } else if fully_viewed {
+                        Style::default()
+                            .fg(t.ui.viewed)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                            .fg(t.ui.text_primary)
+                            .add_modifier(Modifier::BOLD)
+                    };
+                    let meta_style = if is_selected {
+                        base_style
+                    } else {
+                        Style::default().fg(t.ui.text_muted)
+                    };
+
+                    let mut spans = vec![
+                        Span::styled(prefix, prefix_style),
+                        Span::styled(marker, base_style),
+                        Span::styled(" ", base_style),
+                        Span::styled(arrow, dir_style),
+                        Span::styled(" ", base_style),
+                        Span::styled(format!("{}/", name), dir_style),
+                    ];
+
+                    if files > 0 {
+                        spans.push(Span::styled(format!("  {}/{}", viewed, files), meta_style));
+                    }
+
+                    if let Some(stats) = stats {
+                        if stats.added > 0 {
+                            spans.push(Span::styled(
+                                format!(" +{}", stats.added),
+                                if is_selected {
+                                    base_style
+                                } else {
+                                    Style::default().fg(t.ui.status_added)
+                                },
+                            ));
+                        }
+                        if stats.modified > 0 {
+                            spans.push(Span::styled(
+                                format!(" ~{}", stats.modified),
+                                if is_selected {
+                                    base_style
+                                } else {
+                                    Style::default().fg(t.ui.status_modified)
+                                },
+                            ));
+                        }
+                        if stats.deleted > 0 {
+                            spans.push(Span::styled(
+                                format!(" -{}", stats.deleted),
+                                if is_selected {
+                                    base_style
+                                } else {
+                                    Style::default().fg(t.ui.status_deleted)
+                                },
+                            ));
+                        }
+                    }
+
+                    Line::from(spans)
+                }
+                SidebarItem::File {
+                    name,
+                    file_index,
+                    status,
+                    ..
+                } => {
+                    let viewed = viewed_files.contains(file_index);
+                    let is_current = *file_index == current_file;
+                    let marker = if is_current {
+                        "●"
+                    } else if viewed {
+                        "✓"
+                    } else {
+                        "·"
+                    };
+                    let status_color = match status {
+                        FileStatus::Modified => t.ui.status_modified,
+                        FileStatus::Added => t.ui.status_added,
+                        FileStatus::Deleted => t.ui.status_deleted,
+                    };
+                    let status_style = if is_selected {
+                        base_style.add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                            .fg(status_color)
+                            .add_modifier(Modifier::BOLD)
+                    };
+                    let name_style = if is_selected {
+                        base_style
+                    } else if is_current {
+                        Style::default()
+                            .fg(t.ui.highlight)
+                            .add_modifier(Modifier::BOLD)
+                    } else if viewed {
+                        Style::default().fg(t.ui.viewed)
+                    } else {
+                        Style::default().fg(t.ui.text_secondary)
+                    };
+                    let marker_style = if is_selected {
+                        base_style
+                    } else if is_current {
+                        Style::default().fg(t.ui.highlight)
+                    } else if viewed {
+                        Style::default().fg(t.ui.viewed)
+                    } else {
+                        Style::default().fg(t.ui.text_muted)
+                    };
+
+                    Line::from(vec![
+                        Span::styled(prefix, prefix_style),
+                        Span::styled(marker, marker_style),
+                        Span::styled(" ", base_style),
+                        Span::styled(status.symbol(), status_style),
+                        Span::styled(" ", base_style),
+                        Span::styled(name.clone(), name_style),
+                    ])
+                }
+            }
         })
         .collect();
 
@@ -163,8 +302,11 @@ pub fn render_sidebar(
     let muted_style = Style::default().fg(t.ui.text_muted);
 
     let title = Line::from(vec![
-        Span::styled(" [1] Files ", title_style.add_modifier(Modifier::BOLD)),
-        Span::styled(format!("· {} ", total_files), muted_style),
+        Span::styled(" [1] Review ", title_style.add_modifier(Modifier::BOLD)),
+        Span::styled(
+            format!("{} / {} files ", viewed_count, total_files),
+            muted_style,
+        ),
         Span::styled(
             format!("+{}", total_added),
             Style::default().fg(t.ui.stats_added),

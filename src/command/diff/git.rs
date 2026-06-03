@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::thread;
 
 use super::types::{is_binary_content, FileDiff, FileStatus};
 use super::{DiffOptions, PrInfo};
@@ -188,32 +189,60 @@ pub fn load_pr_file_diffs(pr_info: &PrInfo) -> Result<Vec<FileDiff>, String> {
         .map(|(owner, repo)| format!("{}/{}", owner, repo))
         .unwrap_or_else(|| base_repo.clone());
 
-    let file_diffs: Vec<FileDiff> = changed_files
-        .into_iter()
-        .map(|filename| {
-            let old_content =
-                fetch_file_content_from_github(&base_repo, &pr_info.base_sha, &filename);
-            let new_content =
-                fetch_file_content_from_github(&head_repo, &pr_info.head_sha, &filename);
+    let max_parallel = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .clamp(2, 8);
+    let mut file_diffs: Vec<FileDiff> = Vec::with_capacity(changed_files.len());
 
-            let status = if old_content.is_empty() && !new_content.is_empty() {
-                FileStatus::Added
-            } else if !old_content.is_empty() && new_content.is_empty() {
-                FileStatus::Deleted
-            } else {
-                FileStatus::Modified
-            };
+    for chunk in changed_files.chunks(max_parallel) {
+        let mut chunk_diffs = thread::scope(|scope| {
+            let mut handles = Vec::with_capacity(chunk.len());
 
-            let is_binary = is_binary_content(&old_content) || is_binary_content(&new_content);
-            FileDiff {
-                filename,
-                old_content,
-                new_content,
-                status,
-                is_binary,
+            for (idx, filename) in chunk.iter().cloned().enumerate() {
+                let base_repo = &base_repo;
+                let head_repo = &head_repo;
+                let base_sha = &pr_info.base_sha;
+                let head_sha = &pr_info.head_sha;
+
+                handles.push(scope.spawn(move || {
+                    let old_content =
+                        fetch_file_content_from_github(base_repo, base_sha, &filename);
+                    let new_content =
+                        fetch_file_content_from_github(head_repo, head_sha, &filename);
+
+                    let status = if old_content.is_empty() && !new_content.is_empty() {
+                        FileStatus::Added
+                    } else if !old_content.is_empty() && new_content.is_empty() {
+                        FileStatus::Deleted
+                    } else {
+                        FileStatus::Modified
+                    };
+
+                    let is_binary =
+                        is_binary_content(&old_content) || is_binary_content(&new_content);
+                    (
+                        idx,
+                        FileDiff {
+                            filename,
+                            old_content,
+                            new_content,
+                            status,
+                            is_binary,
+                        },
+                    )
+                }));
             }
-        })
-        .collect();
+
+            handles
+                .into_iter()
+                .filter_map(|handle| handle.join().ok())
+                .collect::<Vec<_>>()
+        });
+
+        chunk_diffs.sort_by_key(|(idx, _)| *idx);
+        file_diffs.extend(chunk_diffs.into_iter().map(|(_, diff)| diff));
+    }
 
     Ok(file_diffs)
 }
