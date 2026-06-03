@@ -192,9 +192,9 @@ pub fn load_pr_file_diffs(pr_info: &PrInfo) -> Result<Vec<FileDiff>, String> {
         .into_iter()
         .map(|filename| {
             let old_content =
-                fetch_file_content_from_github(&base_repo, &pr_info.base_ref, &filename);
+                fetch_file_content_from_github(&base_repo, &pr_info.base_sha, &filename);
             let new_content =
-                fetch_file_content_from_github(&head_repo, &pr_info.head_ref, &filename);
+                fetch_file_content_from_github(&head_repo, &pr_info.head_sha, &filename);
 
             let status = if old_content.is_empty() && !new_content.is_empty() {
                 FileStatus::Added

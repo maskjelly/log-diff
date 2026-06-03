@@ -178,6 +178,13 @@ pub fn render_footer(frame: &mut Frame, footer_area: Rect, data: FooterData) {
                 ),
                 Span::styled(" ", Style::default().bg(bg)),
                 Span::styled(
+                    format!(" PR #{} ", pr.number),
+                    Style::default()
+                        .fg(t.ui.highlight)
+                        .bg(t.ui.footer_branch_bg),
+                ),
+                Span::styled(" ", Style::default().bg(bg)),
+                Span::styled(
                     truncated_filename,
                     Style::default().fg(t.ui.text_secondary).bg(bg),
                 ),
@@ -203,7 +210,10 @@ pub fn render_footer(frame: &mut Frame, footer_area: Rect, data: FooterData) {
                 Span::styled(viewed_indicator, Style::default().fg(t.ui.viewed).bg(bg)),
             ];
             spans.extend(stats_spans);
-            spans.push(Span::styled(watch_indicator, Style::default().fg(t.ui.watching).bg(bg)));
+            spans.push(Span::styled(
+                watch_indicator,
+                Style::default().fg(t.ui.watching).bg(bg),
+            ));
             spans
         };
 
@@ -223,17 +233,14 @@ pub fn render_footer(frame: &mut Frame, footer_area: Rect, data: FooterData) {
                 format!("[0/0] /{} ", data.search_state.query)
             };
             vec![
-                Span::styled(
-                    search_info,
-                    Style::default().fg(t.ui.highlight).bg(bg),
-                ),
+                Span::styled(search_info, Style::default().fg(t.ui.highlight).bg(bg)),
                 Span::styled(
                     " n/N navigate ",
                     Style::default().fg(t.ui.text_muted).bg(bg),
                 ),
             ]
         } else {
-            vec![
+            let mut spans = vec![
                 Span::styled(
                     if let Some(idx) = data.focused_hunk {
                         format!(
@@ -259,11 +266,19 @@ pub fn render_footer(frame: &mut Frame, footer_area: Rect, data: FooterData) {
                     },
                     Style::default().fg(t.ui.text_muted).bg(bg),
                 ),
-                Span::styled(
-                    " ? help ",
+                Span::styled(" ? help ", Style::default().fg(t.ui.text_muted).bg(bg)),
+            ];
+            if data.pr_info.is_some() {
+                spans.push(Span::styled(
+                    " i annotate ",
                     Style::default().fg(t.ui.text_muted).bg(bg),
-                ),
-            ]
+                ));
+                spans.push(Span::styled(
+                    " s submit ",
+                    Style::default().fg(t.ui.highlight).bg(bg),
+                ));
+            }
+            spans
         };
 
         let left_line = Line::from(left_spans);
@@ -277,10 +292,7 @@ pub fn render_footer(frame: &mut Frame, footer_area: Rect, data: FooterData) {
         let padding = footer_width.saturating_sub(left_len + right_len);
 
         let mut final_spans: Vec<Span> = left_line.spans;
-        final_spans.push(Span::styled(
-            " ".repeat(padding),
-            Style::default().bg(bg),
-        ));
+        final_spans.push(Span::styled(" ".repeat(padding), Style::default().bg(bg)));
         final_spans.extend(right_line.spans);
 
         let footer = Paragraph::new(Line::from(final_spans)).style(Style::default().bg(bg));

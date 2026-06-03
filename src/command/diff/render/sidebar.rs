@@ -94,7 +94,14 @@ pub fn render_sidebar(
                 } => {
                     let indent = "  ".repeat(*depth);
                     let viewed = viewed_files.contains(file_index);
-                    let marker = if viewed { "✓ " } else { "  " };
+                    let is_current = *file_index == current_file;
+                    let marker = if is_current {
+                        "▸ "
+                    } else if viewed {
+                        "✓ "
+                    } else {
+                        "  "
+                    };
                     let status_color = match status {
                         FileStatus::Modified => Some(t.ui.status_modified),
                         FileStatus::Added => Some(t.ui.status_added),
@@ -106,7 +113,7 @@ pub fn render_sidebar(
                         status_symbol,
                         status_color,
                         format!(" {}", name),
-                        *file_index == current_file,
+                        is_current,
                         viewed,
                     )
                 }
@@ -148,11 +155,15 @@ pub fn render_sidebar(
     } else {
         Style::default().fg(t.ui.border_unfocused)
     };
-    let border_style = Style::default().fg(t.ui.border_unfocused);
+    let border_style = if is_focused {
+        Style::default().fg(t.ui.border_focused)
+    } else {
+        Style::default().fg(t.ui.border_unfocused)
+    };
     let muted_style = Style::default().fg(t.ui.text_muted);
 
     let title = Line::from(vec![
-        Span::styled(" [1] Files ", title_style),
+        Span::styled(" [1] Files ", title_style.add_modifier(Modifier::BOLD)),
         Span::styled(format!("· {} ", total_files), muted_style),
         Span::styled(
             format!("+{}", total_added),

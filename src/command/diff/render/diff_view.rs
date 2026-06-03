@@ -83,8 +83,8 @@ fn build_line_slots<'a, 'e>(
     slots
 }
 use crate::command::diff::types::{
-    ChangeType, DiffFullscreen, DiffLine, DiffPanelFocus, DiffViewSettings, FileDiff, FocusedPanel,
-    InlineSegment, Selection, SelectionMode, SidebarItem,
+    ChangeType, DiffFullscreen, DiffLine, DiffPanelFocus, DiffViewSettings, FileDiff, FileStatus,
+    FocusedPanel, InlineSegment, Selection, SelectionMode, SidebarItem,
 };
 use crate::command::diff::PrInfo;
 
@@ -213,6 +213,37 @@ fn render_stacked_header(
 /// The pattern uses forward slashes to create a visual distinction for empty areas.
 fn generate_stripe_pattern(width: usize) -> String {
     "╱".repeat(width)
+}
+
+fn status_style(status: FileStatus, t: &theme::Theme) -> (&'static str, Style) {
+    match status {
+        FileStatus::Added => ("A", Style::default().fg(t.ui.status_added)),
+        FileStatus::Modified => ("M", Style::default().fg(t.ui.status_modified)),
+        FileStatus::Deleted => ("D", Style::default().fg(t.ui.status_deleted)),
+    }
+}
+
+fn panel_title(
+    label: &str,
+    diff: &FileDiff,
+    title_style: Style,
+    t: &theme::Theme,
+) -> Line<'static> {
+    let (status, status_style) = status_style(diff.status, t);
+    Line::from(vec![
+        Span::styled(
+            format!(" {} ", label),
+            title_style.add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" {} ", status),
+            status_style.add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" {} ", diff.filename),
+            Style::default().fg(t.ui.text_muted),
+        ),
+    ])
 }
 
 /// Append a trailing span of bg-colored spaces so the line fills `target_width` cells.
@@ -859,7 +890,6 @@ fn apply_selection_to_spans<'a>(
     result
 }
 
-
 pub fn compute_line_stats(side_by_side: &[DiffLine]) -> LineStats {
     let mut added = 0;
     let mut removed = 0;
@@ -994,7 +1024,13 @@ fn compute_target_index_ranges(
 ) -> Vec<(usize, usize, DiffPanelFocus)> {
     let mut ranges = Vec::new();
     for target in targets {
-        if let AnnotationTarget::LineRange { panel, start_line, end_line, .. } = target {
+        if let AnnotationTarget::LineRange {
+            panel,
+            start_line,
+            end_line,
+            ..
+        } = target
+        {
             let mut first_idx: Option<usize> = None;
             let mut last_idx: Option<usize> = None;
             for (idx, dl) in side_by_side.iter().enumerate() {
@@ -1351,7 +1387,11 @@ pub fn render_diff(
 
     // Handle binary files - show a message instead of trying to diff
     if diff.is_binary {
-        let border_style = Style::default().fg(t.ui.border_unfocused);
+        let border_style = if focused_panel == FocusedPanel::DiffView {
+            Style::default().fg(t.ui.border_focused)
+        } else {
+            Style::default().fg(t.ui.border_unfocused)
+        };
         let title_style = if focused_panel == FocusedPanel::DiffView {
             Style::default().fg(t.ui.border_focused)
         } else {
@@ -1366,7 +1406,7 @@ pub fn render_diff(
             .alignment(ratatui::layout::Alignment::Center)
             .block(
                 Block::default()
-                    .title(Line::styled(format!(" {} ", diff.filename), title_style))
+                    .title(panel_title("Binary", diff, title_style, t))
                     .borders(Borders::ALL)
                     .border_style(border_style),
             );
@@ -1408,7 +1448,11 @@ pub fn render_diff(
     // Tracks the screen rect of the inline editor, when one is rendered this frame.
     let mut editor_rect: Option<Rect> = None;
 
-    let border_style = Style::default().fg(t.ui.border_unfocused);
+    let border_style = if focused_panel == FocusedPanel::DiffView {
+        Style::default().fg(t.ui.border_focused)
+    } else {
+        Style::default().fg(t.ui.border_unfocused)
+    };
     let title_style = if focused_panel == FocusedPanel::DiffView {
         Style::default().fg(t.ui.border_focused)
     } else {
@@ -1548,7 +1592,10 @@ pub fn render_diff(
 
             // Check if this line is the end_line for any line-range slot
             for slot in &line_slots {
-                if let AnnotationTarget::LineRange { panel, end_line, .. } = slot.target() {
+                if let AnnotationTarget::LineRange {
+                    panel, end_line, ..
+                } = slot.target()
+                {
                     if diff_line.line_number(*panel) == Some(*end_line) {
                         let num_ann_lines = slot.height();
                         let line_pos = new_lines.len();
@@ -1564,7 +1611,7 @@ pub fn render_diff(
 
         let new_para = Paragraph::new(new_lines).scroll((0, h_scroll)).block(
             Block::default()
-                .title(Line::styled(" [2] New File ", title_style))
+                .title(panel_title("[2] New File", diff, title_style, t))
                 .borders(Borders::ALL)
                 .border_style(border_style),
         );
@@ -1723,7 +1770,10 @@ pub fn render_diff(
 
             // Check if this line is the end_line for any line-range slot
             for slot in &line_slots {
-                if let AnnotationTarget::LineRange { panel, end_line, .. } = slot.target() {
+                if let AnnotationTarget::LineRange {
+                    panel, end_line, ..
+                } = slot.target()
+                {
                     if diff_line.line_number(*panel) == Some(*end_line) {
                         let num_ann_lines = slot.height();
                         let line_pos = old_lines.len();
@@ -1739,7 +1789,7 @@ pub fn render_diff(
 
         let old_para = Paragraph::new(old_lines).scroll((0, h_scroll)).block(
             Block::default()
-                .title(Line::styled(" [2] Deleted File ", title_style))
+                .title(panel_title("[2] Deleted File", diff, title_style, t))
                 .borders(Borders::ALL)
                 .border_style(border_style),
         );
@@ -1798,18 +1848,8 @@ pub fn render_diff(
         let visible_height = reference_area.height.saturating_sub(2) as usize;
         let scroll_usize = scroll as usize;
 
-        let content_height = visible_height.saturating_sub(context_count);
-        let visible_lines: Vec<&DiffLine> = side_by_side
-            .iter()
-            .skip(scroll_usize)
-            .take(content_height)
-            .collect();
-
-        let mut old_lines: Vec<Line> = Vec::new();
-        let mut new_lines: Vec<Line> = Vec::new();
-        let mut slot_overlays: Vec<(usize, &OverlaySlot)> = Vec::new();
-
-        // Collect file-level annotations
+        // Collect file-level annotations before slicing visible diff rows so
+        // side-by-side files reserve the same top overlay space as single-panel files.
         let file_annotations: Vec<&Annotation> = annotations
             .iter()
             .filter(|a| a.filename == diff.filename && matches!(a.target, AnnotationTarget::File))
@@ -1826,8 +1866,20 @@ pub fn render_diff(
 
         let file_slots = build_file_slots(&file_annotations, editor, &diff.filename);
         let line_slots = build_line_slots(&line_annotations, editor, &diff.filename);
-
         let file_ann_height = file_slots_height(&file_slots);
+
+        let base_content_height = visible_height.saturating_sub(context_count);
+        let content_height = base_content_height.saturating_sub(file_ann_height);
+        let visible_lines: Vec<&DiffLine> = side_by_side
+            .iter()
+            .skip(scroll_usize)
+            .take(content_height)
+            .collect();
+
+        let mut old_lines: Vec<Line> = Vec::new();
+        let mut new_lines: Vec<Line> = Vec::new();
+        let mut slot_overlays: Vec<(usize, &OverlaySlot)> = Vec::new();
+
         content_row_offset = context_count + file_ann_height;
 
         if settings.context.enabled && context_count > 0 {
@@ -2190,7 +2242,10 @@ pub fn render_diff(
 
             // Check if this line is the end_line for any line-range slot
             for slot in &line_slots {
-                if let AnnotationTarget::LineRange { panel, end_line, .. } = slot.target() {
+                if let AnnotationTarget::LineRange {
+                    panel, end_line, ..
+                } = slot.target()
+                {
                     if diff_line.line_number(*panel) == Some(*end_line) {
                         let num_lines = slot.height();
 
@@ -2227,7 +2282,7 @@ pub fn render_diff(
                 .scroll((0, h_scroll))
                 .block(
                     Block::default()
-                        .title(Line::styled(" [2] Old ", title_style))
+                        .title(panel_title("[2] Old", diff, title_style, t))
                         .borders(Borders::ALL)
                         .border_style(border_style),
                 );
@@ -2246,7 +2301,7 @@ pub fn render_diff(
                 .scroll((0, h_scroll))
                 .block(
                     Block::default()
-                        .title(Line::styled(" New ", title_style))
+                        .title(panel_title("New", diff, title_style, t))
                         .borders(new_borders)
                         .style(Style::default().bg(bg))
                         .border_style(border_style),
@@ -2390,6 +2445,10 @@ pub fn render_diff(
         },
     );
 
-    (content_row_offset, overlay_gaps, annotation_rects, editor_rect)
+    (
+        content_row_offset,
+        overlay_gaps,
+        annotation_rects,
+        editor_rect,
+    )
 }
-
